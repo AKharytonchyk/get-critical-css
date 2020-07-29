@@ -26,7 +26,6 @@ const args = yargs
 
 function getFileName(props) {
   const { url, width, height } = props;
-  console.log(props);
   let fileName = url
     .replace(/http?(s):\/\//i, '')
     .replace(/\?.+/, '')
