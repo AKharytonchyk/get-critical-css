@@ -12,5 +12,11 @@
   "dependencies": {
     "puppeteer": "^5.2.1",
     "yargs": "^15.4.1"
+  },
+  "devDependencies": {
+    "eslint": "^7.5.0",
+    "eslint-config-airbnb-base": "^14.2.0",
+    "eslint-config-prettier": "^6.11.0",
+    "eslint-plugin-import": "^2.22.0"
   }
 }

@@ -2,7 +2,7 @@ const puppeteer = require('puppeteer');
 const yargs = require('yargs');
 const fs = require('fs');
 const path = require('path');
-let browser, page;
+const process = require('process');
 
 const outputFormat = {
   CONSOLE:'console',
@@ -10,19 +10,16 @@ const outputFormat = {
 }
 
 const args = yargs
-  .usage('get-critical-css --url [page-url] --output [file|console]')
+  .usage('get-critical-css --url \x1b[36m{{url}}\x1b[0m --output \x1b[36m{{type}}\x1b[0m')
+  .usage('get-critical-css --url \x1b[36m{{url}}\x1b[0m --output \x1b[36m{{type}}\x1b[0m --width \x1b[36m[700,1100,1920]\x1b[0m')
   .alias('u', 'url')
   .alias('o', 'output')
   .alias('w', 'width')
-  .alias('h', 'height')
   .describe(['u', 'url'], 'Page url where you want to get critical css from')
-  .describe(['o', 'output'], 'Output format. File or Console only.')
-  .describe(['w', 'width'], 'Define viewport width')
-  .describe(['h', 'height'], 'Define viewport height')
+  .describe(['o', 'output'], 'Output format. `\x1b[36mfile\x1b[0m` or `\x1b[36mconsole\x1b[0m` only.')
+  .describe(['w', 'width'], 'Define viewport width. Provide an array without spaces.')
   .choices('output', [outputFormat.CONSOLE, outputFormat.FILE])
   .demandOption(['url', 'output']).argv;
-
-
 
 function getFileName(props) {
   const { url, width, height } = props;
@@ -36,12 +33,8 @@ function getFileName(props) {
   return fileName.concat('.css').replace(/\.\./g, '.');
 };
 
-const runCoverage = async () => {
-  browser = await puppeteer.launch();
-  page = await browser.newPage();
 
-  if(args.width && args.height) page.setViewport({ width: args.width, height: args.height });
-
+const runCoverage = async (page) => {
   // Start sending raw DevTools Protocol commands are sent using `client.send()`
   // First off enable the necessary "Domains" for the DevTools commands we care about
   const client = await page.target().createCDPSession();
@@ -63,43 +56,59 @@ const runCoverage = async () => {
 
   await page.goto(args.url);
 
-  const rules = await client.send('CSS.takeCoverageDelta');
-  const usedRules = rules.coverage.filter((rule) => rule.used);
-
-  // Consolidate used styles that are not yet inlined.
-  const slices = [];
-  for (const usedRule of usedRules) {
-    if (inlineStylesheetIndex.has(usedRule.styleSheetId)) {
-      continue;
-    }
-
-    const stylesheet = await client.send('CSS.getStyleSheetText', {
-      styleSheetId: usedRule.styleSheetId,
+  if (args.width) {
+    const viewportWidth = JSON.parse(args.width);
+    viewportWidth.forEach(width => {
+      page.setViewport({ width, height: 1080 });
     });
-
-    slices.push(stylesheet.text.slice(usedRule.startOffset, usedRule.endOffset));
   }
+
+  const rules = await client.send('CSS.takeCoverageDelta');
+  const usedRules = rules.coverage.filter((rule) => rule.used && !inlineStylesheetIndex.has(rule.styleSheetId));
+  // Consolidate used styles that are not yet inlined.
+  const critical = [];
+
+  await Promise.all(
+    usedRules.map(async (usedRule) => {
+      const stylesheet = await client.send('CSS.getStyleSheetText', {
+        styleSheetId: usedRule.styleSheetId,
+      });
+
+      critical.push(stylesheet.text.slice(usedRule.startOffset, usedRule.endOffset));
+    }),
+  );
+
+  console.log('\n==== Critical Styles ====\n')
+  console.log('Viewport: ', args.width || 'default');
+  console.log('Style count:', critical.length);
+  console.log('\n=========================\n')
 
   switch (args.output) {
     case outputFormat.CONSOLE:
-      console.log(slices.join(''));
+      console.log(critical.join(''));
       break;
     case outputFormat.FILE:
-      const filename = getFileName(args);
-      const filePath = path.join(__dirname, '../dist', filename);
-      fs.writeFileSync(filePath, slices.join(''), { encoding: 'utf-8'});
+      fs.writeFileSync(path.join(__dirname, '../dist', getFileName(args)), critical.join(''), { encoding: 'utf-8' });
       break;
     default:
       break;
   }
-
-  await page.close();
-  await browser.close();
 };
 
-runCoverage().catch(e => {
-  page && page.close();
-  browser && browser.close();
+const run = async () => {
+  const browser = await puppeteer.launch();
+  const page = await browser.newPage();
 
-  throw e;
-})
+  try {
+    await runCoverage(page);
+  } finally {
+    await page.close();
+    await browser.close();
+  }
+}
+
+run().catch(e => {
+  console.error('\x1b[31m','Something when wrong!','\x1b[0m')
+  console.error(e)
+  process.exit(1);
+});
