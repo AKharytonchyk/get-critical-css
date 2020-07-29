@@ -22,7 +22,8 @@ node .\src\get-critical-css.js --url "{{YOUR_URL}}" --output "file"
 
 ## Websites with media break points
 
-If your side have a responsive layout based on viewport size you can provide expected width as an array:
+If your side have a responsive layout based on viewport size you can provide expected width as an array. Please note that no spaces allowed for width property.
+
 ```bash
-node .\src\get-critical-css.js --url "https://my.website.com/foo" --output "file" --width [699, 1199, 1499]
+node .\src\get-critical-css.js --url "https://my.website.com/foo" --output "file" --width [699,1199,1499]
 ```
