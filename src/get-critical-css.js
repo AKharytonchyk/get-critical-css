@@ -22,15 +22,11 @@ const args = yargs
   .demandOption(['url', 'output']).argv;
 
 function getFileName(props) {
-  const { url, width, height } = props;
-  let fileName = url
-    .replace(/http?(s):\/\//i, '')
-    .replace(/\?.+/, '')
-    .replace(/\//g, '.');
+  const { url } = props;
+  const fileName = url.replace(/https?:\/\/|\/$/ig,'').replace(/:|\//gi, '_');
   
-  if (width && height) fileName = ''.concat(fileName, '.', width, 'x', height);
-
-  return fileName.concat('.css').replace(/\.\./g, '.');
+  console.log(fileName.concat('.css'));
+  return fileName.concat('.css');
 };
 
 
